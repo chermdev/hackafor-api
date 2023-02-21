@@ -4,17 +4,17 @@ from schemas.schemas import Product
 # from schemas.schemas import Category
 from database.tables import Products
 
-products_router = APIRouter()
+products_router = APIRouter(prefix="/products")
 
 
 # FastAPI handles JSON serialization and deserialization for us.
 # We can simply use built-in python and Pydantic types, in this case dict[int, Item].
-@products_router.get("/products")
+@products_router.get("/")
 def index() -> list[Product]:
     return Products().select().execute().data
 
 
-@products_router.get("/products/{product_id}")
+@products_router.get("/{product_id}")
 def query_item_by_id(product_id: int) -> Product:
     response = Products().select().eq("id", product_id).execute()
     if not response.data:
@@ -24,9 +24,17 @@ def query_item_by_id(product_id: int) -> Product:
     return response.data[0]
 
 
+@products_router.get("/amazon/")
+def srap_amazon_product_data(
+    url: str
+) -> list[Product]:
+    from hackafor_crawler_amz import crawler
+    data = crawler.scrap_urls(url)
+    return data
+
+
 # Selection = dict[str, str | int | float | Category | None]
 Selection = dict[str, str | int | float | None]
-
 
 # TODO: WIP
 # @products_router.get("/products/")

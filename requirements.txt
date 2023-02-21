@@ -3,3 +3,4 @@ requests==2.28.2
 supabase==1.0.0
 python-dotenv==0.21.1
 uvicorn[standard]
+git+https://github.com/chermdev/hackafor-crawler-amz.git#egg=hackafor_crawler_amz
