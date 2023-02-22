@@ -34,7 +34,7 @@ def query_product_by_id(product_id: int) -> Product:
 
 
 @products_router.get("/")
-def query_product_by_url(url: str) -> Product:
+def query_product_by_url(url: str | None = None) -> Product:
     response = Products().select().eq("url", url).execute()
     if not response.data:
         raise HTTPException(
