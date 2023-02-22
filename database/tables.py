@@ -35,7 +35,7 @@ class Products(Table):
     table_name: str = "products"
 
     def insert(self, product: Product) -> APIResponse:
-        return self.table().insert(product.dict()).execute()
+        return self.table().insert(product.dict(exclude_none=True)).execute()
 
 
 class Ranking(Table):
@@ -43,4 +43,4 @@ class Ranking(Table):
     table_name: str = "ranking"
 
     def insert(self, score: Score) -> APIResponse:
-        return self.table().insert(score.dict()).execute()
+        return self.table().insert(score.dict(exclude_none=True)).execute()

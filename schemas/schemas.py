@@ -10,10 +10,12 @@ class Category(str, Enum):
 
 class Product(BaseModel):
     id: int | None
-    name: str
+    name: str | None
     full_name: str
     price: float
     image: str
+    url: str
+    store: str
     categories: list
 
 

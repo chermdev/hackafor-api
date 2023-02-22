@@ -85,6 +85,27 @@ def query_item_by_id(product_id: int, url: str = None) -> dict[str, dict]:
     }
 
 
+@products_router.put("/amazon/")
+def query_item_by_id(url: str) -> dict[str, dict]:
+    if Products().select("url").eq("url", url).execute().data:
+        raise HTTPException(
+            status_code=400,
+            detail="Product already added, use PATCH method instead."
+        )
+    if "," in url:
+        url = url.split(",")[0]
+    from hackafor_crawler_amz import crawler
+    product_data = crawler.scrap_urls(url)[0]
+    updated_data = Product(
+        full_name=product_data["full_name"],
+        price=product_data["price"],
+        image=product_data["image"],
+        url=url,
+        store="amazon",
+        categories=product_data["categories"]
+    )
+    Products().insert(updated_data)
+
 # # Selection = dict[str, str | int | float | Category | None]
 # Selection = dict[str, str | int | float | None]
 
