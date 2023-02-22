@@ -14,7 +14,7 @@ class Product(BaseModel):
     full_name: str
     price: float
     image: str
-    url: str
+    url: str | None
     store: str
     categories: list
 
