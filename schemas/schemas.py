@@ -17,6 +17,7 @@ class Product(BaseModel):
     url: str | None
     store: str
     categories: list
+    lang: str
 
 
 class Score(BaseModel):

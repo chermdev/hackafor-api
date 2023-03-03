@@ -4,7 +4,7 @@ from schemas.schemas import Product
 # from schemas.schemas import Category
 from database.tables import Products
 from postgrest import APIResponse
-
+from typing import Any
 
 products_router = APIRouter(prefix="/products")
 
@@ -17,9 +17,14 @@ def get_all_products() -> list[Product]:
 
 
 @products_router.get("/amazon/")
-def scrap_amazon_product_from_url(url: str) -> list[dict]:
+def scrap_amazon_product_from_url(url: str,
+                                  lang: str = "en-US",
+                                  method: str = "playwright") -> dict[str, dict[str, dict]]:
     from hackafor_crawler_amz import crawler
-    data = crawler.scrap_urls(url)
+    import asyncio
+    data = asyncio.run(crawler.scrap_urls(url,
+                                          locales=lang,
+                                          method=method))
     return data
 
 
@@ -44,36 +49,52 @@ def query_product_by_url(url: str | None = None) -> Product:
 
 
 @products_router.put("/amazon/")
-def scrap_and_add_product_from_url(url: str) -> dict[str, str | dict]:
-    if Products().select("url").eq("url", url).execute().data:
-        raise HTTPException(
-            status_code=400,
-            detail="Product already added, use PATCH method instead."
-        )
-    if "," in url:
-        url = url.split(",")[0]
+def scrap_and_add_product_from_url(url: str,
+                                   lang: str = "en-US",
+                                   method: str = "playwright") -> dict[str, dict | list]:
+    urls_filtered: list[str | dict] = []
+    lang = lang.split(",")[0]
+    for url_ in url.split(","):
+        if not Products().select("url, lang").eq("url", url_).eq("lang", lang).execute().data:
+            urls_filtered.append(url_)
+
     from hackafor_crawler_amz import crawler
-    product_data = crawler.scrap_urls(url)[0]
-    updated_data = Product(
-        full_name=product_data["full_name"],
-        price=product_data["price"],
-        image=product_data["image"],
-        url=url,
-        store="amazon",
-        categories=product_data["categories"]
-    )
-    response = Products().insert(updated_data)
+    import asyncio
+    data_modified = []
+    urls_data = asyncio.run(crawler.scrap_urls(urls_filtered,
+                                               locales=lang,
+                                               method=method))
+    for url_ in url.split(","):
+        if url_ not in urls_filtered:
+            data_modified.append({
+                "error": "Product already added, use PATCH method instead.",
+                "url": url,
+                "lang": lang
+            })
+            continue
+        lang_data = urls_data[url_]
+        for lang, product_data in lang_data.items():
+            if "error" in product_data:
+                product_data["error"] = str(product_data["error"])
+                data_modified.append(product_data)
+                continue
+            product_data["store"] = "amazon"
+            data_modified.append(product_data)
+            # updated_data = Product.parse_obj(product_data)
+            # response = Products().insert(updated_data)
+            # data_modified.append(response.data)
     return {
-        "query": {"url": url},
-        "msg": "Product added successfully!",
-        "response": {
-            "added": response.data
-        }
+        "query": {"url": url, "lang": lang, "method": method},
+        "result": data_modified
     }
 
 
 @products_router.patch("/amazon/{product_id}")
-def scrap_and_update_product_by_id(product_id: int, url: str = None) -> dict[str, dict]:
+def scrap_and_update_product_by_id(product_id: int,
+                                   url: str = None,
+                                   lang: str = "en-US",
+                                   method: str = "playwright") -> dict[str, dict]:
+    lang = lang.split(",")[0]
     response = Products().select().eq("id", product_id).execute()
     if not response.data:
         raise HTTPException(
@@ -103,79 +124,127 @@ def scrap_and_update_product_by_id(product_id: int, url: str = None) -> dict[str
         )
 
     from hackafor_crawler_amz import crawler
-    data_scrap = crawler.scrap_urls(url)[0]
-    updated_data = {
-        "name": original_data["name"],
-        "full_name": data_scrap["full_name"],
-        "price": data_scrap["price"],
-        "image": data_scrap["image"],
-        "url": url,
-        "store": "amazon",
-        "categories": data_scrap["categories"]
-    }
-    response = Products().update(product_id, updated_data)
-    return {
-        "query": {"id": product_id,
-                  "url": url},
-        "msg": "Product updated successfully!",
-        "response": {
-            "original": original_data,
-            "updated": response.data[0]
+    import asyncio
+
+    urls_data = asyncio.run(crawler.scrap_urls(url,
+                                               locales=lang,
+                                               method=method))
+    lang_data = urls_data[url]
+    product_data = lang_data[lang]
+
+    if "error" in product_data:
+        updated_data = product_data
+        updated_data["error"] = str(updated_data["error"])
+        return {
+            "query": {"id": product_id,
+                      "url": url},
+            "response": {
+                "original": original_data,
+                "error": updated_data
+            }
         }
-    }
-
-
-@products_router.patch("/amazon/")
-def scrap_and_update_product_by_url(url: str) -> dict[str, dict]:
-    response = Products().select().eq("url", url).execute()
-    if not response.data:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Product with {url=} does not exist.")
-    original_data = response.data[0]
-    original_store = original_data.get("store")
-    original_url = original_data.get("url")
-    if original_store != "amazon":
-        raise HTTPException(
-            status_code=400,
-            detail=f"This request only works with 'amazon' products, not '{original_store}'."
-        )
-    if not original_url and not url:
-        raise HTTPException(
-            status_code=400,
-            detail=f"URL value required on either database or parameters."
-        )
-    url = url if url else original_url
-    if "," in url:
-        url = url.split(",")[0]
-
-    if not url.startswith("https://a.co"):
-        raise HTTPException(
-            status_code=400,
-            detail="This request only works for amazon urls that contains 'https://a.co'."
-        )
-
-    from hackafor_crawler_amz import crawler
-    data_scrap = crawler.scrap_urls(url)[0]
-    updated_data = {
-        "name": original_data["name"],
-        "full_name": data_scrap["full_name"],
-        "price": data_scrap["price"],
-        "image": data_scrap["image"],
-        "url": url,
-        "store": "amazon",
-        "categories": data_scrap["categories"]
-    }
-    response = Products().update(original_data["id"], updated_data)
-    return {
-        "query": {"id": original_data["id"],
-                  "url": url},
-        "msg": "Product updated successfully!",
-        "response": {
-            "original": original_data,
-            "updated": response.data[0]
+    else:
+        updated_data = Product.parse_obj({
+            "name": original_data["name"],
+            "full_name": product_data["full_name"],
+            "price": product_data["price"],
+            "image": product_data["image"],
+            "url": url,
+            "store": "amazon",
+            "categories": product_data["categories"],
+            "lang": lang
+        })
+        response = Products().update(product_id, updated_data)
+        return {
+            "query": {"id": product_id,
+                      "url": url},
+            "response": {
+                "original": original_data,
+                "updated": response.data[0]
+            }
         }
-    }
+
+
+# @products_router.patch("/amazon/")
+# def scrap_and_update_product_by_url(url: str,
+#                                     lang: str = "en-US",
+#                                     method: str = "playwright") -> dict[str, dict]:
+#     lang = lang.split(",")[0]
+
+#     urls_filtered: list[str | dict] = []
+#     lang = lang.split(",")[0]
+#     for url_ in url.split(","):
+#         if Products().select("url, lang").eq("url", url_).eq("lang", lang).execute().data:
+#             urls_filtered.append(url_)
+#     if not urls_filtered:
+#         raise HTTPException(
+#             status_code=404,
+#             detail=f"Product with {url=} does not exist.")
+
+#     for url_ in urls_filtered:
+#         original_data = response.data[0]
+#         original_store = original_data.get("store")
+#         original_url = original_data.get("url")
+#         if original_store != "amazon":
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail=f"This request only works with 'amazon' products, not '{original_store}'."
+#             )
+#         if not original_url and not url:
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail=f"URL value required on either database or parameters."
+#             )
+#         url = url if url else original_url
+#         if "," in url:
+#             url = url.split(",")[0]
+
+#         if not url.startswith("https://a.co"):
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail="This request only works for amazon urls that contains 'https://a.co'."
+#             )
+
+#     from hackafor_crawler_amz import crawler
+#     import asyncio
+
+#     urls_data = asyncio.run(crawler.scrap_urls(url,
+#                                                locales=lang,
+#                                                method=method))
+#     lang_data = urls_data[url]
+#     product_data = lang_data[lang]
+
+#     if "error" in product_data:
+#         updated_data = product_data
+#         updated_data["error"] = str(updated_data["error"])
+#         return {
+#             "query": {"id": original_data["id"],
+#                       "url": url},
+#             "response": {
+#                 "original": original_data,
+#                 "error": updated_data
+#             }
+#         }
+#     else:
+#         updated_data = Product.parse_obj({
+#             "name": original_data["name"],
+#             "full_name": product_data["full_name"],
+#             "price": product_data["price"],
+#             "image": product_data["image"],
+#             "url": url,
+#             "store": "amazon",
+#             "categories": product_data["categories"],
+#             "lang": lang
+#         })
+#         response = Products().update(original_data["id"], updated_data)
+#         return {
+#             "query": {"id": original_data["id"],
+#                       "url": url},
+#             "response": {
+#                 "original": original_data,
+#                 "updated": response.data[0]
+#             }
+#         }
 
 
 # # Selection = dict[str, str | int | float | Category | None]
