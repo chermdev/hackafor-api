@@ -22,7 +22,7 @@ auth_router = APIRouter(prefix="/auth")
 
 
 @auth_router.post("/register/")
-def post_register(register: Register) -> AuthResponse:
+def register_new_user(register: Register) -> AuthResponse:
     try:
         response = User().register(register.username,
                                    register.email,

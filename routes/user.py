@@ -23,7 +23,7 @@ user_router = APIRouter(prefix="/user")
 
 
 @user_router.get("/info")
-def user_info(request: Request) -> dict:
+def get_user_info(request: Request) -> dict:
     try:
         # get auth
         header_auth = request.headers.get('authorization')
@@ -52,7 +52,7 @@ def user_info(request: Request) -> dict:
 
 
 @user_router.get("/games/")
-def add_user_score(request: Request) -> list[GamePlayed]:
+def get_user_games_played(request: Request) -> list[GamePlayed]:
     try:
         # get auth
         header_auth = request.headers.get('authorization')
