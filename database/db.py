@@ -7,14 +7,11 @@ from supabase import create_client
 load_dotenv()
 
 
-URL: str = os.environ.get("SUPABASE_URL")
-KEY: str = os.environ.get("SUPABASE_KEY")
-SECRET: str = os.environ.get("SUPABASE_SECRET")
-
-
 class DB:
 
     supabase: Client
 
     def __init__(self) -> None:
-        self.supabase = create_client(URL, SECRET)
+        URL: str = os.environ.get("SUPABASE_URL")
+        KEY: str = os.environ.get("SUPABASE_KEY")
+        self.supabase = create_client(URL, KEY)
