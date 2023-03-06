@@ -1,9 +1,6 @@
 from database.db import DB
-from supabase import Client
-from gotrue.errors import AuthApiError
 from gotrue.types import AuthResponse
 from gotrue.types import OAuthResponse
-from postgrest import SyncPostgrestClient
 
 
 # TODO: not complete, initial commit.
@@ -33,21 +30,15 @@ class User():
         # response.session.access_token
         return response
     
-    
-    def login_github(self) -> OAuthResponse:
+    def login_provider(self, provider:str, redirect_to: str | None = None) -> OAuthResponse:
         """ returns login token """
-        provider = 'github'
         supabase = DB().supabase
-        response = supabase.auth.sign_in_with_oauth({'provider': provider})
-        # response.session.access_token
-        return response
-    
-    def login_google(self) -> OAuthResponse:
-        """ returns login token """
-        provider = 'google'
-        supabase = DB().supabase
-        response = supabase.auth.sign_in_with_oauth({'provider': provider})
-        # response.session.access_token
+        response = supabase.auth.sign_in_with_oauth({
+            "provider": provider,
+            "options": {
+                "redirect_to": redirect_to
+            }
+        })
         return response
 
     def logout(self, token: str) -> None:

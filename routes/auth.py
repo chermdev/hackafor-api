@@ -1,10 +1,14 @@
+import requests
+from typing import Literal
+from fastapi import Request
 from fastapi import APIRouter
 from pydantic import BaseModel
 from database.auth import User
 from fastapi import HTTPException
 from gotrue.types import AuthResponse
 from gotrue.errors import AuthApiError
-from fastapi import Request
+from gotrue.types import OAuthResponse
+from starlette.responses import RedirectResponse
 
 
 class Register(BaseModel):
@@ -36,6 +40,20 @@ def register_new_user(register: Register) -> AuthResponse:
             raise HTTPException(
                 status_code=401,
                 detail="User already exists, try to sign up")
+    except AuthApiError as err:
+        raise HTTPException(
+            status_code=400,
+            detail=str(err))
+
+
+@auth_router.get("/authorize/")
+def authorize(request: Request,
+              provider: Literal['google', 'github'],
+              redirect_to: str | None = None) -> RedirectResponse:
+    try:
+        response = User().login_provider(provider=provider,
+                                         redirect_to=redirect_to)
+        return RedirectResponse(response.url, status_code=302)
     except AuthApiError as err:
         raise HTTPException(
             status_code=400,
