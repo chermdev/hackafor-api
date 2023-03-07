@@ -1,6 +1,7 @@
 from database.db import DB
 from gotrue.types import AuthResponse
 from gotrue.types import OAuthResponse
+import urllib.parse
 
 
 # TODO: not complete, initial commit.
@@ -39,6 +40,10 @@ class User():
                 "redirect_to": redirect_to
             }
         })
+        # temp fix to issue of url encoded twice
+        # https://github.com/supabase-community/gotrue-py/issues/246
+        response.url = urllib.parse.unquote(response.url)
+        response.url = urllib.parse.unquote(response.url)
         return response
 
     def logout(self, token: str) -> None:
