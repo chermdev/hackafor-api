@@ -9,6 +9,7 @@ from gotrue.types import AuthResponse
 from gotrue.errors import AuthApiError
 from gotrue.types import OAuthResponse
 from starlette.responses import RedirectResponse
+from typing import Any
 
 
 class Register(BaseModel):
@@ -61,11 +62,34 @@ def authorize(request: Request,
 
 
 @auth_router.post("/login/")
-def login(login: Login) -> AuthResponse:
+def login(login: Login) -> dict:
     try:
         response = User().login(login.username,
                                 login.password)
-        return response
+
+        class LoginDataUserSchema(BaseModel):
+            id: Any
+            email: Any
+            app_metadata: Any
+            user_metadata: Any
+
+        class LoginDataSessionSchema(BaseModel):
+            provider_token: Any
+            provider_refresh_token: Any
+            access_token: Any
+            refresh_token: Any
+            expires_in: Any
+            expires_at: Any
+            token_type: Any
+            user: LoginDataUserSchema
+
+        class LoginDataSchema(BaseModel):
+            session: LoginDataSessionSchema
+
+        data = LoginDataSchema.parse_obj(
+            response.dict(exclude_none=True, exclude_unset=True))
+
+        return data.dict()
     except AuthApiError as err:
         raise HTTPException(
             status_code=400,
