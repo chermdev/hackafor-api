@@ -3,6 +3,7 @@ from fastapi import Request
 from fastapi import APIRouter
 from pydantic import BaseModel
 from fastapi import HTTPException
+from routes.ranking import Ranking
 from gotrue.errors import AuthApiError
 from postgrest.exceptions import APIError
 
@@ -23,7 +24,7 @@ user_router = APIRouter(prefix="/user")
 
 
 @user_router.get("/info")
-def get_user_info(request: Request) -> dict:
+def get_user_info(request: Request) -> dict[str, dict]:
     try:
         # get auth
         header_auth = request.headers.get('authorization')
@@ -37,7 +38,8 @@ def get_user_info(request: Request) -> dict:
         response = supabase.auth.get_user(access_token)
 
         # filter response keys
-        keys_to_collect: tuple = ("email", "phone", "user_metadata")
+        keys_to_collect: tuple = (
+            "id", "app_metadata", "user_metadata", "email", "phone")
         user_data = {user_key: {key: val
                                 for key, val
                                 in user_data.items()
@@ -60,7 +62,6 @@ def get_user_games_played(request: Request) -> list[GamePlayed]:
             raise HTTPException(
                 status_code=401, detail="Authorization token not found")
         token_type, access_token = header_auth.split(" ")
-
         # get session
         supabase = DB().supabase
         user_response = supabase.auth.get_user(access_token)
@@ -88,7 +89,6 @@ def add_user_score(game: GamePlayed, request: Request) -> list:
             raise HTTPException(
                 status_code=401, detail="Authorization token not found")
         token_type, access_token = header_auth.split(" ")
-
         # get session
         supabase = DB().supabase
         user_response = supabase.auth.get_user(access_token)
@@ -99,6 +99,21 @@ def add_user_score(game: GamePlayed, request: Request) -> list:
                                                      exclude_unset=True))
         response = supabase.table("games").insert(
             game_played.dict(exclude_none=True)).execute()
+        ranking_data = Ranking.parse_obj(game_played.dict(exclude_none=True,
+                                                          exclude_unset=True))
+        # check if user has ranking
+        ranking_response = supabase.table("ranking") \
+            .select("*") \
+            .eq("username", user_response.user.id).execute()
+        if ranking_response.data:
+            if game_played.score > ranking_response.data[0]["score"]:
+                supabase.table("ranking") \
+                    .update(ranking_data.dict(exclude_none=True)) \
+                        .eq("username", user_response.user.id).execute()
+        else:
+            supabase.table("ranking") \
+                    .insert(ranking_data.dict(exclude_none=True)).execute()
+
         return response.data
     except APIError as err:
         raise HTTPException(
