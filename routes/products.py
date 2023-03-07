@@ -1,10 +1,10 @@
+from fastapi import Depends
+from supabase import Client
 from fastapi import APIRouter
 from fastapi import HTTPException
 from schemas.schemas import Product
-# from schemas.schemas import Category
 from database.tables import Products
-from postgrest import APIResponse
-from typing import Any
+from database.auth import jwtBearer
 
 products_router = APIRouter(prefix="/products")
 
@@ -51,7 +51,8 @@ def query_product_by_url(url: str | None = None) -> Product:
 @products_router.put("/amazon/")
 def scrap_and_add_product_from_url(url: str,
                                    lang: str = "en-US",
-                                   method: str = "playwright") -> dict[str, dict | list]:
+                                   method: str = "playwright",
+                                   supabase: Client = Depends(jwtBearer())) -> dict[str, dict | list]:
     urls_filtered: list[str | dict] = []
     lang = lang.split(",")[0]
     for url_ in url.split(","):
@@ -79,10 +80,16 @@ def scrap_and_add_product_from_url(url: str,
                 data_modified.append(product_data)
                 continue
             product_data["store"] = "amazon"
+            img_link_split: list = product_data.get("image").split(".")
+            img_link_split.pop(-2)
+            img_size_updated = ".".join(img_link_split)
+            product_data["image"] = img_size_updated
             data_modified.append(product_data)
-            # updated_data = Product.parse_obj(product_data)
-            # response = Products().insert(updated_data)
-            # data_modified.append(response.data)
+            updated_data = Product.parse_obj(product_data)
+            response = supabase.table("products") \
+                .insert(updated_data.dict(exclude_none=True)) \
+                .execute()
+            data_modified.append(response.data)
     return {
         "query": {"url": url, "lang": lang, "method": method},
         "result": data_modified
@@ -93,7 +100,8 @@ def scrap_and_add_product_from_url(url: str,
 def scrap_and_update_product_by_id(product_id: int,
                                    url: str = None,
                                    lang: str = "en-US",
-                                   method: str = "playwright") -> dict[str, dict]:
+                                   method: str = "playwright",
+                                   supabase: Client = Depends(jwtBearer())) -> dict[str, dict]:
     lang = lang.split(",")[0]
     response = Products().select().eq("id", product_id).execute()
     if not response.data:
@@ -154,7 +162,9 @@ def scrap_and_update_product_by_id(product_id: int,
             "categories": product_data["categories"],
             "lang": lang
         })
-        response = Products().update(product_id, updated_data)
+        response = supabase.table("products") \
+            .update(updated_data.dict(exclude_none=True)) \
+            .eq("id", product_id).execute()
         return {
             "query": {"id": product_id,
                       "url": url},

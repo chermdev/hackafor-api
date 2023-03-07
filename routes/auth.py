@@ -5,9 +5,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from database.auth import User
 from fastapi import HTTPException
-from gotrue.types import AuthResponse
 from gotrue.errors import AuthApiError
-from gotrue.types import OAuthResponse
 from starlette.responses import RedirectResponse
 from typing import Any
 
@@ -49,6 +47,16 @@ class RegisterDataSchema(BaseModel):
     user: LoginDataUserSchema
 
 
+class SessionToken(BaseModel):
+    provider_token: str | None
+    provider_refresh_token: str | None
+    access_token: str
+    refresh_token: str
+    expires_in: int
+    expires_at: int | None
+    token_type: str
+
+
 auth_router = APIRouter(prefix="/auth")
 
 
@@ -74,15 +82,21 @@ def register_new_user(register: Register) -> dict[str, str]:
             status_code=400,
             detail=str(err))
 
+@auth_router.get("/user/")
+def authorize_user(request: Request) -> None:
+    return
 
 @auth_router.get("/authorize/")
-def authorize(request: Request,
+def authorize_provider(request: Request,
               provider: Literal['google', 'github'],
               redirect_to: str | None = None) -> RedirectResponse:
+    if not redirect_to:
+        redirect_to = 'http://localhost:8000/auth/user/'
     try:
-        response = User().login_provider(provider=provider,
-                                         redirect_to=redirect_to)
-        return RedirectResponse(response.url, status_code=302)
+        provider_response = User().login_provider(provider=provider,
+                                                  redirect_to=redirect_to)
+        response = RedirectResponse(provider_response.url, status_code=302)
+        return response
     except AuthApiError as err:
         raise HTTPException(
             status_code=400,
@@ -92,13 +106,12 @@ def authorize(request: Request,
 @auth_router.post("/login/")
 def login(login: Login) -> LoginDataSchema:
     try:
-        response = User().login(login.username,
-                                login.password)
+        login_response = User().login(login.username,
+                                      login.password)
 
         data = LoginDataSchema.parse_obj(
-            response.dict(exclude_none=True,
-                          exclude_unset=True))
-
+            login_response.dict(exclude_none=True,
+                                exclude_unset=True))
         return data
     except AuthApiError as err:
         raise HTTPException(

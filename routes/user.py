@@ -1,11 +1,16 @@
 from database.db import DB
+from supabase import Client
 from fastapi import Request
 from fastapi import APIRouter
+from fastapi import Depends
+from fastapi.security import HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from fastapi import HTTPException
 from routes.ranking import Ranking
 from gotrue.errors import AuthApiError
 from postgrest.exceptions import APIError
+from database.auth import jwtBearer
 
 
 class SessionToken(BaseModel):
@@ -19,27 +24,18 @@ class GamePlayed(BaseModel):
     score: int
     data: dict | None
 
+
 class UserRanking(Ranking):
     rank: int
-    
+
 
 user_router = APIRouter(prefix="/user")
 
 
 @user_router.get("/info")
-def get_user_info(request: Request) -> dict[str, dict]:
+def get_user_info(supabase: Client = Depends(jwtBearer())) -> dict[str, dict]:
     try:
-        # get auth
-        header_auth = request.headers.get('authorization')
-        if not header_auth:
-            raise HTTPException(
-                status_code=401, detail="Authorization token not found")
-        token_type, access_token = header_auth.split(" ")
-
-        # get session
-        supabase = DB().supabase
-        response = supabase.auth.get_user(access_token)
-
+        response = supabase.auth.get_user()
         # filter response keys
         keys_to_collect: tuple = (
             "id", "app_metadata", "user_metadata", "email", "phone")
@@ -57,18 +53,9 @@ def get_user_info(request: Request) -> dict[str, dict]:
 
 
 @user_router.get("/games/")
-def get_user_games_played(request: Request) -> list[GamePlayed]:
+def get_user_games_played(supabase: Client = Depends(jwtBearer())) -> list[GamePlayed]:
     try:
-        # get auth
-        header_auth = request.headers.get('authorization')
-        if not header_auth:
-            raise HTTPException(
-                status_code=401, detail="Authorization token not found")
-        token_type, access_token = header_auth.split(" ")
-        # get session
-        supabase = DB().supabase
-        user_response = supabase.auth.get_user(access_token)
-        supabase.postgrest.auth(access_token)
+        user_response = supabase.auth.get_user()
         # select data
         response = supabase.table("games").select(
             "*").eq("username", user_response.user.id).execute()
@@ -82,30 +69,21 @@ def get_user_games_played(request: Request) -> list[GamePlayed]:
             status_code=400,
             detail=str(err))
 
+
 @user_router.get("/ranking/")
-def get_user_ranking(request: Request) -> dict | UserRanking:
+def get_user_ranking(supabase: Client = Depends(jwtBearer())) -> dict | UserRanking:
     try:
-        # get auth
-        header_auth = request.headers.get('authorization')
-        if not header_auth:
-            raise HTTPException(
-                status_code=401, detail="Authorization token not found")
-        token_type, access_token = header_auth.split(" ")
-        # get session
-        supabase = DB().supabase
-        user_response = supabase.auth.get_user(access_token)
-        supabase.postgrest.auth(access_token)
-        
+        user_response = supabase.auth.get_user()
         ranking_list = supabase.table("ranking").select("*").order("score",
-                                                               desc=True).execute().data
-        
+                                                                   desc=True).execute().data
+
         # check if user has ranking
         user_ranking_data = supabase.table("ranking") \
             .select("*") \
             .eq("username", user_response.user.id).execute().data
         if not user_ranking_data:
             return {
-                "msg": "Play a game to see your ranking score here." 
+                "msg": "Play a game to see your ranking score here."
             }
         user_rank_data = user_ranking_data[0]
         user_rank_index = ranking_list.index(user_rank_data)
@@ -119,20 +97,12 @@ def get_user_ranking(request: Request) -> dict | UserRanking:
         raise HTTPException(
             status_code=400,
             detail=str(err))
-        
+
+
 @user_router.post("/game_played/")
-def add_user_score(game: GamePlayed, request: Request) -> list:
+def add_user_score(game: GamePlayed, supabase: Client = Depends(jwtBearer())) -> list:
     try:
-        # get auth
-        header_auth = request.headers.get('authorization')
-        if not header_auth:
-            raise HTTPException(
-                status_code=401, detail="Authorization token not found")
-        token_type, access_token = header_auth.split(" ")
-        # get session
-        supabase = DB().supabase
-        user_response = supabase.auth.get_user(access_token)
-        supabase.postgrest.auth(access_token)
+        user_response = supabase.auth.get_user()
         # insert data
         game.username = user_response.user.id
         game_played = GamePlayed.parse_obj(game.dict(exclude_none=True,
