@@ -82,16 +82,10 @@ def register_new_user(register: Register) -> dict[str, str]:
             status_code=400,
             detail=str(err))
 
-@auth_router.get("/user/")
-def authorize_user(request: Request) -> None:
-    return
 
 @auth_router.get("/authorize/")
-def authorize_provider(request: Request,
-              provider: Literal['google', 'github'],
-              redirect_to: str | None = None) -> RedirectResponse:
-    if not redirect_to:
-        redirect_to = 'http://localhost:8000/auth/user/'
+def authorize_provider(provider: Literal['google', 'github'],
+                       redirect_to: str | None = None) -> RedirectResponse:
     try:
         provider_response = User().login_provider(provider=provider,
                                                   redirect_to=redirect_to)
