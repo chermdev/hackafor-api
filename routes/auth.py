@@ -23,24 +23,52 @@ class Login(BaseModel):
     password: str
 
 
+class LoginDataUserSchema(BaseModel):
+    id: Any
+    email: Any
+    app_metadata: Any
+    user_metadata: Any
+
+
+class LoginDataSessionSchema(BaseModel):
+    provider_token: Any
+    provider_refresh_token: Any
+    access_token: Any
+    refresh_token: Any
+    expires_in: Any
+    expires_at: Any
+    token_type: Any
+    user: LoginDataUserSchema
+
+
+class LoginDataSchema(BaseModel):
+    session: LoginDataSessionSchema
+
+
+class RegisterDataSchema(BaseModel):
+    user: LoginDataUserSchema
+
+
 auth_router = APIRouter(prefix="/auth")
 
 
 @auth_router.post("/register/")
-def register_new_user(register: Register) -> AuthResponse:
+def register_new_user(register: Register) -> dict[str, str]:
     try:
         response = User().register(register.username,
                                    register.email,
                                    register.password)
         # return response
-        if response.user.identities:
-            # user created, requires email confirmation or resend verification email
-            return response
-        else:
+        if not response.user.identities:
             # user already created
             raise HTTPException(
                 status_code=401,
                 detail="User already exists, try to sign up")
+        # user created, requires email confirmation or resend verification email
+        # data = RegisterDataSchema.parse_obj(
+        #     response.dict(exclude_none=True,
+        #                   exclude_unset=True))
+        return {"message": "Email confirmation sent, please check your inbox!"}
     except AuthApiError as err:
         raise HTTPException(
             status_code=400,
@@ -62,34 +90,16 @@ def authorize(request: Request,
 
 
 @auth_router.post("/login/")
-def login(login: Login) -> dict:
+def login(login: Login) -> LoginDataSchema:
     try:
         response = User().login(login.username,
                                 login.password)
 
-        class LoginDataUserSchema(BaseModel):
-            id: Any
-            email: Any
-            app_metadata: Any
-            user_metadata: Any
-
-        class LoginDataSessionSchema(BaseModel):
-            provider_token: Any
-            provider_refresh_token: Any
-            access_token: Any
-            refresh_token: Any
-            expires_in: Any
-            expires_at: Any
-            token_type: Any
-            user: LoginDataUserSchema
-
-        class LoginDataSchema(BaseModel):
-            session: LoginDataSessionSchema
-
         data = LoginDataSchema.parse_obj(
-            response.dict(exclude_none=True, exclude_unset=True))
+            response.dict(exclude_none=True,
+                          exclude_unset=True))
 
-        return data.dict()
+        return data
     except AuthApiError as err:
         raise HTTPException(
             status_code=400,
