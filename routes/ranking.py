@@ -19,7 +19,7 @@ ranking_router = APIRouter(prefix="/ranking")
 
 
 @ranking_router.get("/")
-def get_ranking_list(max_results: str = 10) -> list[dict]:
+def get_ranking_list(max_results: int = 10) -> list[dict]:
     try:
         supabase = DB().supabase
         response = supabase.table("ranking").select("*").order("score",
