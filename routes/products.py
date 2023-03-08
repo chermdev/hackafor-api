@@ -1,4 +1,5 @@
 from fastapi import Depends
+from database.db import DB
 from supabase import Client
 from fastapi import APIRouter
 from fastapi import HTTPException
@@ -52,7 +53,7 @@ def query_product_by_url(url: str | None = None) -> Product:
 def scrap_and_add_product_from_url(url: str,
                                    lang: str = "en-US",
                                    method: str = "playwright",
-                                   supabase: Client = Depends(jwtBearer())) -> dict[str, dict | list]:
+                                   token: Client = Depends(jwtBearer())) -> dict[str, dict | list]:
     urls_filtered: list[str | dict] = []
     lang = lang.split(",")[0]
     for url_ in url.split(","):
@@ -86,6 +87,8 @@ def scrap_and_add_product_from_url(url: str,
             product_data["image"] = img_size_updated
             data_modified.append(product_data)
             updated_data = Product.parse_obj(product_data)
+            supabase = DB().supabase
+            supabase.postgrest.auth(token)
             response = supabase.table("products") \
                 .insert(updated_data.dict(exclude_none=True)) \
                 .execute()
@@ -101,7 +104,7 @@ def scrap_and_update_product_by_id(product_id: int,
                                    url: str = None,
                                    lang: str = "en-US",
                                    method: str = "playwright",
-                                   supabase: Client = Depends(jwtBearer())) -> dict[str, dict]:
+                                   token: Client = Depends(jwtBearer())) -> dict[str, dict]:
     lang = lang.split(",")[0]
     response = Products().select().eq("id", product_id).execute()
     if not response.data:
@@ -162,6 +165,8 @@ def scrap_and_update_product_by_id(product_id: int,
             "categories": product_data["categories"],
             "lang": lang
         })
+        supabase = DB().supabase
+        supabase.postgrest.auth(token)
         response = supabase.table("products") \
             .update(updated_data.dict(exclude_none=True)) \
             .eq("id", product_id).execute()

@@ -33,9 +33,10 @@ user_router = APIRouter(prefix="/user")
 
 
 @user_router.get("/info/")
-def get_user_info(supabase: Client = Depends(jwtBearer())) -> dict[str, dict]:
+def get_user_info(token: Client = Depends(jwtBearer())) -> dict[str, dict]:
     try:
-        response = supabase.auth.get_user()
+        supabase = DB().supabase
+        response = supabase.auth.get_user(token)
         # filter response keys
         keys_to_collect: tuple = (
             "id", "app_metadata", "user_metadata", "email", "phone")
@@ -53,9 +54,11 @@ def get_user_info(supabase: Client = Depends(jwtBearer())) -> dict[str, dict]:
 
 
 @user_router.get("/games/")
-def get_user_games_played(supabase: Client = Depends(jwtBearer())) -> list[GamePlayed]:
+def get_user_games_played(token: Client = Depends(jwtBearer())) -> list[GamePlayed]:
     try:
-        user_response = supabase.auth.get_user()
+        supabase = DB().supabase
+        supabase.postgrest.auth(token)
+        user_response = supabase.auth.get_user(token)
         # select data
         response = supabase.table("games").select(
             "*").eq("username", user_response.user.id).execute()
@@ -71,9 +74,11 @@ def get_user_games_played(supabase: Client = Depends(jwtBearer())) -> list[GameP
 
 
 @user_router.get("/ranking/")
-def get_user_ranking(supabase: Client = Depends(jwtBearer())) -> dict | UserRanking:
+def get_user_ranking(token: Client = Depends(jwtBearer())) -> dict | UserRanking:
     try:
-        user_response = supabase.auth.get_user()
+        supabase = DB().supabase
+        supabase.postgrest.auth(token)
+        user_response = supabase.auth.get_user(token)
         ranking_list = supabase.table("ranking").select("*").order("score",
                                                                    desc=True).execute().data
 
@@ -100,17 +105,22 @@ def get_user_ranking(supabase: Client = Depends(jwtBearer())) -> dict | UserRank
 
 
 @user_router.post("/game_played/")
-def add_user_score(game: GamePlayed, supabase: Client = Depends(jwtBearer())) -> list:
+def add_user_score(game: GamePlayed, token: Client = Depends(jwtBearer())) -> list:
     try:
-        user_response = supabase.auth.get_user()
+        supabase = DB().supabase
+        supabase.postgrest.auth(token)
+        user_response = supabase.auth.get_user(token)
+
         # insert data
         game.username = user_response.user.id
+        game.data = {"user_metadata": user_response.user.user_metadata}
         game_played = GamePlayed.parse_obj(game.dict(exclude_none=True,
                                                      exclude_unset=True))
         response = supabase.table("games").insert(
             game_played.dict(exclude_none=True)).execute()
         ranking_data = Ranking.parse_obj(game_played.dict(exclude_none=True,
                                                           exclude_unset=True))
+        ranking_data.data = {"user_metadata": user_response.user.user_metadata}
         # check if user has ranking
         ranking_response = supabase.table("ranking") \
             .select("*") \

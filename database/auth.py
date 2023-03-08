@@ -31,9 +31,9 @@ class jwtBearer(HTTPBearer):
     def verify_jwt(self, jwt_token: str) -> Client:
         try:
             supabase = DB().supabase
-            # supabase.auth.get_user(jwt_token)
+            supabase.auth.get_user(jwt_token)
             supabase.postgrest.auth(jwt_token)
-            return supabase
+            return jwt_token
         except AuthApiError as err:
             raise HTTPException(
                 status_code=400,

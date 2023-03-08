@@ -9,7 +9,7 @@ from postgrest.exceptions import APIError
 
 class Ranking(BaseModel):
     id: int | None
-    rank: str
+    rank: str | None
     created_at: str | None
     username: str | None
     score: int
