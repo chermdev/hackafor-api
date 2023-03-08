@@ -24,6 +24,8 @@ def get_ranking_list(max_results: int = 10) -> list[dict]:
         supabase = DB().supabase
         response = supabase.table("ranking").select("*").order("score",
                                                                desc=True).execute()
+        for n, data in enumerate(response.data, start=1):
+            data["rank"] = n
         return response.data[:max_results]
     except AuthApiError as err:
         raise HTTPException(
