@@ -25,10 +25,6 @@ class GamePlayed(BaseModel):
     data: dict | None
 
 
-class UserRanking(Ranking):
-    rank: int
-
-
 user_router = APIRouter(prefix="/user")
 
 
@@ -74,7 +70,7 @@ def get_user_games_played(token: Client = Depends(jwtBearer())) -> list[GamePlay
 
 
 @user_router.get("/ranking/")
-def get_user_ranking(token: Client = Depends(jwtBearer())) -> dict | UserRanking:
+def get_user_ranking(token: Client = Depends(jwtBearer())) -> Ranking:
     try:
         supabase = DB().supabase
         supabase.postgrest.auth(token)

@@ -7,13 +7,23 @@ from gotrue.errors import AuthApiError
 from postgrest.exceptions import APIError
 
 
+class UserMetadata(BaseModel):
+    name: str
+    user_name: str
+    avatar_url: str
+
+
+class RankingData(BaseModel):
+    user_metadata: UserMetadata
+
+
 class Ranking(BaseModel):
     id: int | None
     rank: str | None
     created_at: str | None
     username: str | None
     score: int
-    data: dict | None
+    data: RankingData | None
 
 
 ranking_router = APIRouter(prefix="/ranking")
