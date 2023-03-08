@@ -32,7 +32,7 @@ class UserRanking(Ranking):
 user_router = APIRouter(prefix="/user")
 
 
-@user_router.get("/info")
+@user_router.get("/info/")
 def get_user_info(supabase: Client = Depends(jwtBearer())) -> dict[str, dict]:
     try:
         response = supabase.auth.get_user()
