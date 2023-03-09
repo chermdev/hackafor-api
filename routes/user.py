@@ -3,6 +3,7 @@ from supabase import Client
 from fastapi import Request
 from fastapi import APIRouter
 from fastapi import Depends
+from fastapi import Body
 from fastapi.security import HTTPBearer
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -15,6 +16,9 @@ from database.auth import jwtBearer
 
 class SessionToken(BaseModel):
     token: str
+    
+class Message(BaseModel):
+    msg: str
 
 
 class GamePlayed(BaseModel):
@@ -70,7 +74,7 @@ def get_user_games_played(token: Client = Depends(jwtBearer())) -> list[GamePlay
 
 
 @user_router.get("/ranking/")
-def get_user_ranking(token: Client = Depends(jwtBearer())) -> Ranking:
+def get_user_ranking(token: Client = Depends(jwtBearer())) -> Ranking | Message:
     try:
         supabase = DB().supabase
         supabase.postgrest.auth(token)
@@ -101,7 +105,7 @@ def get_user_ranking(token: Client = Depends(jwtBearer())) -> Ranking:
 
 
 @user_router.post("/game_played/")
-def add_user_score(game: GamePlayed, token: Client = Depends(jwtBearer())) -> list:
+def add_user_score(game: GamePlayed = Body(), token: Client = Depends(jwtBearer())) -> list:
     try:
         supabase = DB().supabase
         supabase.postgrest.auth(token)
