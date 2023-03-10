@@ -8,7 +8,6 @@ from postgrest.exceptions import APIError
 
 
 class UserMetadata(BaseModel):
-    name: str
     user_name: str
     avatar_url: str
 
